@@ -56,7 +56,21 @@ async function fetchMarket(): Promise<Market> {
       name: typeof names[code] === "string" ? (names[code] as string) : code.toUpperCase(),
     }))
     .sort((a, b) => a.code.localeCompare(b.code));
-  return { date, fetchedAt: new Date().toISOString(), currencies, perUsd };
+  const current = keepCurrentUnits(currencies, perUsd);
+  for (const code of Object.keys(perUsd)) {
+    if (!current.some((c) => c.code === code)) delete perUsd[code];
+  }
+  return { date, fetchedAt: new Date().toISOString(), currencies: current, perUsd };
+}
+
+function keepCurrentUnits(currencies: Currency[], perUsd: Record<string, number>): Currency[] {
+  const byName = new Map<string, Currency>();
+  for (const currency of currencies) {
+    const key = currency.name.trim().toLowerCase();
+    const existing = byName.get(key);
+    if (!existing || perUsd[currency.code] < perUsd[existing.code]) byName.set(key, currency);
+  }
+  return [...byName.values()].sort((a, b) => a.code.localeCompare(b.code));
 }
 
 export const getMarket = createServerFn({ method: "GET" }).handler(async (): Promise<Market> => {
